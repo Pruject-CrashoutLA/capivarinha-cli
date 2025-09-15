@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+VERSION = "v0.1.0"
+
 """
 capi-cli
 
@@ -405,7 +408,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
-
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=VERSION,
+        help="Exibe a versão atual da ferramenta",
+    )
     # pesquisar
     p_search = subparsers.add_parser(
         "pesquisar", help="Pesquisar variáveis cujo valor contenha um termo"
