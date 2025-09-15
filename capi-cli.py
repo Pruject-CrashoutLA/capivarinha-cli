@@ -409,7 +409,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
     parser.add_argument(
-        "--version",
+        "--version", "-v",
         action="version",
         version=VERSION,
         help="Exibe a versão atual da ferramenta",
