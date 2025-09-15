@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-
-VERSION = "v0.1.0"
-
 """
 capi-cli
 
@@ -29,6 +26,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+VERSION = "v0.1.0"
 
 # ==============================
 # Utilidades de Console / Spinner
