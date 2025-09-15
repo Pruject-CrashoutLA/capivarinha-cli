@@ -7,7 +7,7 @@ capi-cli
 Uma CLI em Python (stdlib-only) para:
   1) pesquisar: localizar variáveis de ambiente (Variable Groups) que contenham um termo
   2) baixar: exportar as variáveis de um Variable Group específico para um arquivo .env
-  3) listar: listar variáveis (sem termo) aplicando filtros de projeto e ambiente
+  3) listar: listar os Variable Groups (libs) aplicando filtros de projeto e ambiente
 
 Requisitos:
   - Python 3.8+
@@ -26,7 +26,7 @@ import subprocess
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Set
 
 VERSION = "v0.1.1"
 
@@ -249,11 +249,13 @@ def listar(
     projeto: Optional[str],
     ambiente: Optional[str],
 ) -> List[Dict[str, Any]]:
-    """Lista variáveis de grupos aplicando filtros de projeto/ambiente (sem termo).
+    """Lista APENAS os Variable Groups (libs) aplicando filtros de projeto/ambiente.
 
-    Retorna no mesmo formato do `pesquisar`.
+    Retorna itens sem variáveis, deduplicados por (projeto, grupo):
+      { projeto, grupo, criado_por, modificado_por }
     """
     results: List[Dict[str, Any]] = []
+    seen: Set[Tuple[str, str]] = set()
 
     with Spinner("Listando projetos..."):
         projects = devops.list_projects()
@@ -262,27 +264,26 @@ def listar(
         projects = [p for p in projects if match_filter(p, projeto)]
 
     for proj in projects:
-        with Spinner(f"Analisando grupos em: {proj}"):
+        with Spinner(f"Listando grupos em: {proj}"):
             groups = devops.list_variable_groups(proj)
 
         for g in groups:
             if ambiente and (ambiente not in g.name):
                 continue
 
-            # Varre e lista TODAS as variáveis do grupo
-            for k, meta in (g.variables or {}).items():
-                raw_val = (meta or {}).get("value")
-                val = str(raw_val) if raw_val is not None else None
-                results.append(
-                    {
-                        "projeto": proj,
-                        "grupo": g.name,
-                        "variavel": k,
-                        "valor": val if val is not None else "***SECRET***",
-                        "criado_por": _format_identity(g.created_by),
-                        "modificado_por": _format_identity(g.modified_by),
-                    }
-                )
+            key = (proj, g.name)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            results.append(
+                {
+                    "projeto": proj,
+                    "grupo": g.name,
+                    "criado_por": _format_identity(g.created_by),
+                    "modificado_por": _format_identity(g.modified_by),
+                }
+            )
 
     return results
 
@@ -343,7 +344,7 @@ def _to_env_map(group: VariableGroup) -> Dict[str, str]:
 
 
 def print_results(results: List[Dict[str, Any]]) -> None:
-    """Exibe resultados de pesquisa/listagem no terminal em formato legível."""
+    """Exibe resultados de pesquisa/listagem de variáveis no terminal."""
     if not results:
         print("Nenhum resultado encontrado.")
         return
@@ -361,6 +362,21 @@ def print_results(results: List[Dict[str, Any]]) -> None:
         )
 
 
+def print_groups(groups: List[Dict[str, Any]]) -> None:
+    """Exibe apenas os grupos (libs) encontrados, sem variáveis."""
+    if not groups:
+        print("Nenhum grupo encontrado.")
+        return
+
+    for g in groups:
+        print("-" * 80)
+        print(f"Projeto: {g['projeto']}")
+        print(f"Grupo:   {g['grupo']}")
+        print(f"Criado:  {g['criado_por']}")
+        print(f"Modif.:  {g['modificado_por']}")
+    print("-" * 80)
+
+
 def write_text_file(path: str, content: str) -> None:
     """Grava texto em arquivo com UTF-8."""
     with open(path, "w", encoding="utf-8") as f:
@@ -368,7 +384,7 @@ def write_text_file(path: str, content: str) -> None:
 
 
 def serialize_results_txt(results: List[Dict[str, Any]]) -> str:
-    """Serializa resultados para um texto simples."""
+    """Serializa resultados (de pesquisa) para um texto simples."""
     if not results:
         return "Nenhum resultado encontrado.\n"
     lines: List[str] = ["Resultados", "=" * 80]
@@ -384,6 +400,25 @@ def serialize_results_txt(results: List[Dict[str, Any]]) -> str:
                 "-" * 80,
             ]
         )
+    return "\n".join(lines) + "\n"
+
+
+def serialize_groups_txt(groups: List[Dict[str, Any]]) -> str:
+    """Serializa apenas grupos (listar) para texto simples."""
+    if not groups:
+        return "Nenhum grupo encontrado.\n"
+    lines: List[str] = []
+    for g in groups:
+        lines.extend(
+            [
+                "-" * 80,
+                f"Projeto: {g['projeto']}",
+                f"Grupo:   {g['grupo']}",
+                f"Criado:  {g['criado_por']}",
+                f"Modif.:  {g['modificado_por']}",
+            ]
+        )
+    lines.append("-" * 80)
     return "\n".join(lines) + "\n"
 
 
@@ -460,7 +495,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # listar
     p_list = subparsers.add_parser(
-        "listar", help="Listar variáveis aplicando filtros de projeto/ambiente (sem termo)"
+        "listar", help="Listar os Variable Groups (libs) disponíveis"
     )
     p_list.add_argument(
         "--organizacao",
@@ -474,16 +509,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_list.add_argument(
         "--ambiente",
         type=str.upper,
-        help="Filtro opcional de ambiente (ex.: DEV, QAS, UAT, HTX, PRD ou qualquer outro)",
+        help="Filtro opcional de ambiente no nome do grupo",
     )
     p_list.add_argument(
         "--salvar",
-        help="Salvar resultados em arquivo de texto",
+        help="Salvar lista de grupos em arquivo texto",
     )
     p_list.add_argument(
         "--out",
         action="store_true",
-        help="Exibir resultados no terminal",
+        help="Exibir lista de grupos no terminal",
     )
 
     # baixar
@@ -556,7 +591,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.command == "listar":
         try:
-            results = listar(
+            groups = listar(
                 devops=devops,
                 projeto=args.projeto,
                 ambiente=args.ambiente,
@@ -566,11 +601,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 2
 
         if args.salvar:
-            text = serialize_results_txt(results)
+            text = serialize_groups_txt(groups)
             write_text_file(args.salvar, text)
-            print(f"✔ Resultados salvos em: {args.salvar}")
+            print(f"✔ Grupos salvos em: {args.salvar}")
         if args.out or not args.salvar:
-            print_results(results)
+            print_groups(groups)
         return 0
 
     if args.command == "baixar":
