@@ -2,6 +2,8 @@
 
 Uma CLI em **Python puro** para interagir com **Variable Groups** do Azure DevOps.
 
+![Capivarinha executando um comando Azure](banner.jpg)
+
 ---
 
 ## ✨ Funcionalidades
