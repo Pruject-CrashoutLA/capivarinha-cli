@@ -6,8 +6,9 @@ Uma CLI em **Python puro** para interagir com **Variable Groups** do Azure DevOp
 
 ## ✨ Funcionalidades
 
-* 🔍 **Pesquisar**: encontra variáveis cujo **valor** contém um termo informado.
-* 📥 **Baixar**: exporta todas as variáveis de um **Variable Group (lib)** para um arquivo `.env`.
+* 🔍 **Pesquisar**: encontra variáveis cujo **valor** contém um termo informado.  
+* 📥 **Baixar**: exporta todas as variáveis de um **Variable Group (lib)** para um arquivo `.env`.  
+* 📂 **Listar**: exibe todas as variáveis de um projeto/grupo, sem filtro por termo.  
 
 ---
 
@@ -17,29 +18,29 @@ Uma CLI em **Python puro** para interagir com **Variable Groups** do Azure DevOp
 * **Azure CLI (`az`)** instalada
 * Autenticação ativa:
 
-  ```bash
-  az login
-  ```
-* Se necessário, instale a extensão do DevOps:
+```bash
+az login
+````
 
-  ```bash
-  az extension add --name azure-devops
-  ```
+Se necessário, instale a extensão do DevOps:
 
-> 💡 **Dica**: se você usa múltiplas organizações/projetos, configure os defaults:
->
-> ```bash
-> az account show
-> az devops configure --defaults organization=https://dev.azure.com/minha-org
-> ```
+```bash
+az extension add --name azure-devops
+```
 
 ---
 
-## ⚙️ Instalação (opcional)
+## ⚙️ Instalação
 
 Você pode rodar direto o arquivo `capi-cli.py`, mas se preferir instalar globalmente:
 
-### Linux / macOS
+### Via Makefile (Linux/macOS)
+
+```bash
+make instalar
+```
+
+### Manual
 
 ```bash
 chmod +x capi-cli.py
@@ -50,34 +51,41 @@ sudo cp capi-cli.py /usr/local/bin/capi-cli
 
 ```powershell
 Copy-Item .\capi-cli.py "C:\Windows\System32\capi-cli.py"
-# Agora você pode chamar com:
 python C:\Windows\System32\capi-cli.py ...
 ```
 
-Ou adicione a pasta do script ao `PATH`.
-
 ---
 
-## ▶️ Como usar sem instalação
+## ▶️ Como usar
 
-Execute diretamente com Python:
+### Pesquisar
 
 ```bash
-python3 capi-cli.py pesquisar \
-  --termo=lorem-ipsum \
-  --projeto=TEST --ambiente=DEV \
-  --salvar=resultado.txt --out \
-  --organizacao=https://dev.azure.com/minha-org
+capi-cli pesquisar \
+  --organizacao=https://dev.azure.com/minha-org \
+  --termo=https://my-api \
+  --projeto=TEST --ambiente=QAS \
+  --salvar=resultado.txt --out
 ```
 
-Exportar `.env` de uma lib específica:
+### Baixar
 
 ```bash
-python3 capi-cli.py baixar \
-  --projeto=TEST --ambiente=DEV \
-  --salvar=.env --out \
+capi-cli baixar \
   --organizacao=https://dev.azure.com/minha-org \
-  --lib=MEU-APP.DEV
+  --projeto=TEST \
+  --lib=Meu-App.QAS \
+  --ambiente=QAS \
+  --salvar=.env --out
+```
+
+### Listar
+
+```bash
+capi-cli listar \
+  --organizacao=https://dev.azure.com/minha-org \
+  --projeto=COCKPIT --ambiente=DEV \
+  --salvar=variaveis.txt --out
 ```
 
 ---
@@ -96,16 +104,6 @@ python3 capi-cli.py baixar \
 | `--salvar`      | ❌           | Salvar saída em arquivo texto                               |
 | `--out`         | ❌           | Exibir resultados no terminal                               |
 
-📌 Exemplo:
-
-```bash
-capi-cli pesquisar \
-  --organizacao=https://dev.azure.com/minha-org \
-  --termo=https://my-legacy-api \
-  --projeto=TEST --ambiente=QAS \
-  --salvar=resultado.txt --out
-```
-
 ---
 
 ### 📥 `baixar`
@@ -119,32 +117,33 @@ capi-cli pesquisar \
 | `--salvar`      | ❌           | Caminho do arquivo `.env`                         |
 | `--out`         | ❌           | Exibir `.env` no terminal                         |
 
-📌 Exemplo:
+---
 
-```bash
-capi-cli baixar \
-  --organizacao=https://dev.azure.com/minha-org \
-  --projeto=TEST \
-  --lib=Meu-App.QAS \
-  --ambiente=QAS \
-  --salvar=.env --out
-```
+### 📂 `listar`
+
+| Parâmetro       | Obrigatório | Descrição                                     |
+| --------------- | ----------- | --------------------------------------------- |
+| `--organizacao` | ✅           | URL da organização                            |
+| `--projeto`     | ✅           | Nome/substring do projeto                     |
+| `--ambiente`    | ❌           | Filtra pelo nome do grupo contendo o ambiente |
+| `--salvar`      | ❌           | Caminho do arquivo texto                      |
+| `--out`         | ❌           | Exibir variáveis no terminal                  |
 
 ---
 
 ## 📦 Saída
 
-* **pesquisar** → lista:
+* **pesquisar** e **listar** → lista:
 
-  ```
-  projeto | grupo | chave | valor | criado_por | modificado_por
-  ```
+```
+projeto | grupo | chave | valor | criado_por | modificado_por
+```
 
 * **baixar** → gera `.env` no formato:
 
-  ```
-  KEY=VALUE
-  ```
+```
+KEY=VALUE
+```
 
 > 🔒 **Segredos** não são retornados pela Azure CLI — aparecem como `***SECRET***`.
 
@@ -164,14 +163,6 @@ capi-cli baixar \
 
 ---
 
-## 🛠️ Solução de problemas
-
-* **`az: command not found`** → instale a Azure CLI.
-* **Permissão negada** → valide login com `az login` e permissões nos projetos.
-* **Sem resultados** → revise filtros (`--projeto`, `--ambiente`, `--termo`).
-
----
-
 ## 📚 Boas práticas aplicadas
 
 * Arquitetura limpa (Clean Code & SOLID)
@@ -181,35 +172,19 @@ capi-cli baixar \
 
 ---
 
-## 🚀 Roadmap / Sugestões futuras
+## 🚀 Roadmap
 
 * Exportar também para JSON ou YAML
-* Suporte a múltiplas libs no comando `baixar` (`--lib LIB1 --lib LIB2`)
-* Novo comando `listar` para exibir rapidamente projetos e grupos
+* Suporte a múltiplas libs no comando `baixar`
+* Melhorar a performance em grandes organizações
 
 ---
 
 ## ⚡ Instalação rápida via GitHub
 
-### Linux / macOS
-
 ```bash
 git clone https://github.com/4lessandrodev/capivarinha-cli.git && \
 cd capivarinha-cli && \
-chmod +x capi-cli.py && \
-sudo cp capi-cli.py /usr/local/bin/capi-cli && \
+make instalar && \
 cd .. && rm -rf capivarinha-cli
 ```
-
-### Windows (PowerShell)
-
-```powershell
-git clone https://github.com/4lessandrodev/capivarinha-cli.git
-Set-Location capivarinha-cli
-Copy-Item .\capi-cli.py "C:\Program Files\capi-cli\capi-cli.py"
-'@echo off
-python "%~dp0\capi-cli.py" %*
-' | Out-File "C:\Program Files\capi-cli\capi-cli.bat" -Encoding ASCII
-```
-
-> Depois, adicione `C:\Program Files\capi-cli` ao `PATH` se necessário.
