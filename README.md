@@ -144,3 +144,36 @@ capi-cli pesquisar --organizacao=https://dev.azure.com/minha-org \
 capi-cli baixar --organizacao=https://dev.azure.com/minha-org \
   --projeto=TEST --lib=Minha-Api.QAS --salvar=.env --out
 ```
+
+## Instalação Rápida
+
+---
+
+## Comando simples para instalar direto do GitHub
+
+### Linux / macOS
+
+```bash
+git clone https://github.com/4lessandrodev/capivarinha-cli.git && \
+cd capivarinha-cli && \
+chmod +x capi-cli.py && \
+sudo cp capi-cli.py /usr/local/bin/capi-cli && \
+cd .. && \
+rm -rf capivarinha-cli
+```
+
+---
+
+### Windows (PowerShell)
+
+```powershell
+git clone https://github.com/4lessandrodev/capivarinha-cli.git
+Set-Location capivarinha-cli
+Copy-Item .\capi-cli.py "C:\Program Files\capi-cli\capi-cli.py"
+# Criar o bat para chamar facilmente
+'@echo off
+python "%~dp0\capi-cli.py" %*
+' | Out-File "C:\Program Files\capi-cli\capi-cli.bat" -Encoding ASCII
+```
+
+Depois certifique de que `C:\Program Files\capi-cli` esteja no PATH.
