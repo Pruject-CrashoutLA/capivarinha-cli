@@ -1,0 +1,544 @@
+#!/usr/bin/env python3
+"""
+capi-cli
+
+Uma CLI em Python (stdlib-only) para:
+  1) pesquisar: localizar variáveis de ambiente (Variable Groups) que contenham um termo
+  2) baixar: exportar as variáveis de um Variable Group específico para um arquivo .env
+
+Requisitos:
+  - Python 3.8+
+  - Azure CLI (az) instalada e autenticada: `az login`
+  - (se necessário) extensão do Azure DevOps: `az extension add --name azure-devops`
+
+Autor: Alessandro (adaptado e estruturado em Python)
+Versão: 1.1.0
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import subprocess
+import threading
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
+
+
+# ==============================
+# Utilidades de Console / Spinner
+# ==============================
+class Spinner:
+    """Spinner simples para feedback visual sem poluir o terminal.
+
+    Uso:
+        with Spinner("Buscando projetos..."):
+            ...
+    """
+
+    def __init__(self, message: str = "Processando...") -> None:
+        self.message = message
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        # Fallback para terminais Windows antigos sem boa fonte unicode
+        if os.name == "nt":
+            self.frames = ["|", "/", "-", "\\"]
+            self.interval = 0.12
+        else:
+            self.frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+            self.interval = 0.08
+
+    def __enter__(self) -> "Spinner":
+        print(self.message, end=" ")
+        self._thread = threading.Thread(target=self._spin, daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self._stop.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=0.2)
+        # limpa a linha do spinner
+        print("\r" + " " * (len(self.message) + 2) + "\r", end="")
+
+    def _spin(self) -> None:
+        i = 0
+        while not self._stop.is_set():
+            sys.stdout.write(self.frames[i % len(self.frames)] + "\b")
+            sys.stdout.flush()
+            i += 1
+            time.sleep(self.interval)
+
+
+# ==============================
+# Infra: execução de comandos az
+# ==============================
+class AzCliError(RuntimeError):
+    """Erro ao executar comandos Azure CLI."""
+
+
+def run_az(args: List[str]) -> Any:
+    """Executa `az` com os argumentos fornecidos e retorna JSON parseado.
+
+    Args:
+        args: Lista de argumentos (sem incluir a palavra `az`).
+
+    Returns:
+        Objeto Python resultante do JSON retornado pelo comando.
+
+    Raises:
+        AzCliError: Se a execução falhar ou o JSON não puder ser parseado.
+    """
+    cmd = ["az"] + args + ["-o", "json"]
+    try:
+        proc = subprocess.run(
+            cmd,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError as e:
+        raise AzCliError(
+            "Azure CLI não encontrada. Instale o `az` e faça login com `az login`."
+        ) from e
+
+    if proc.returncode != 0:
+        # Mensagens amigáveis comuns
+        stderr = (proc.stderr or "").strip()
+        if "extension" in stderr.lower() and "azure-devops" in stderr.lower():
+            raise AzCliError(
+                f"{stderr}\nDica: tente instalar a extensão: az extension add --name azure-devops"
+            )
+        raise AzCliError(stderr or "Falha ao executar Azure CLI.")
+
+    try:
+        return json.loads(proc.stdout or "null")
+    except json.JSONDecodeError as e:
+        raise AzCliError("Retorno do Azure CLI não é um JSON válido.") from e
+
+
+# ==============================
+# Modelos de dados (simples)
+# ==============================
+@dataclass
+class VariableGroup:
+    id: int
+    name: str
+    variables: Dict[str, Dict[str, Any]]
+    created_by: Dict[str, Any]
+    modified_by: Dict[str, Any]
+
+    @staticmethod
+    def from_json(d: Dict[str, Any]) -> "VariableGroup":
+        """Cria um VariableGroup a partir do JSON bruto da Azure CLI."""
+        return VariableGroup(
+            id=d.get("id"),
+            name=d.get("name", ""),
+            variables=d.get("variables", {}) or {},
+            created_by=d.get("createdBy", {}) or {},
+            modified_by=d.get("modifiedBy", {}) or {},
+        )
+
+
+# ==============================
+# Azure DevOps Facade
+# ==============================
+class AzureDevOps:
+    """Fachada para operações necessárias do Azure DevOps via Azure CLI."""
+
+    def __init__(self, organization: str) -> None:
+        self.organization = organization
+
+    def list_projects(self) -> List[str]:
+        """Lista nomes de projetos da organização.
+
+        Returns:
+            Lista com os nomes dos projetos.
+        """
+        data = run_az(["devops", "project", "list", "--organization", self.organization])
+        values = data.get("value", []) if isinstance(data, dict) else []
+        return [p.get("name") for p in values if p.get("name")]
+
+    def list_variable_groups(self, project: str) -> List[VariableGroup]:
+        """Lista Variable Groups de um projeto.
+
+        Args:
+            project: Nome do projeto no Azure DevOps.
+
+        Returns:
+            Lista de VariableGroup.
+        """
+        data = run_az(
+            [
+                "pipelines",
+                "variable-group",
+                "list",
+                "--organization",
+                self.organization,
+                "--project",
+                project,
+            ]
+        )
+        if not isinstance(data, list):
+            return []
+        return [VariableGroup.from_json(item) for item in data]
+
+
+# ==============================
+# Filtros e utilidades de busca
+# ==============================
+def match_filter(value: str, needle: Optional[str]) -> bool:
+    """Verifica se `value` contém `needle` (case-sensitive) ou se não há filtro."""
+    if not needle:
+        return True
+    return needle in value
+
+
+def contains(haystack: Optional[str], needle: str, ignore_case: bool = False) -> bool:
+    """Retorna True se `haystack` contém `needle` (respeitando ignore_case)."""
+    if haystack is None:
+        return False
+    if ignore_case:
+        return needle.lower() in haystack.lower()
+    return needle in haystack
+
+
+# ==============================
+# Casos de uso (pesquisar / baixar)
+# ==============================
+def pesquisar(
+    devops: AzureDevOps,
+    termo: str,
+    projeto: Optional[str],
+    ambiente: Optional[str],
+    ignore_case: bool,
+) -> List[Dict[str, Any]]:
+    """Pesquisa variáveis cujo *valor* contenha o `termo`.
+
+    Args:
+        devops: Instância da fachada AzureDevOps.
+        termo: Termo obrigatório a ser procurado nos valores das variáveis.
+        projeto: Filtro opcional de projeto (substring).
+        ambiente: Filtro opcional de ambiente (substring no nome do grupo).
+        ignore_case: Se True, busca case-insensitive.
+
+    Returns:
+        Lista de dicionários com resultados encontrados.
+    """
+    results: List[Dict[str, Any]] = []
+
+    with Spinner("Listando projetos..."):
+        projects = devops.list_projects()
+
+    # Filtra por projeto se fornecido (mantém case-sensitive por ser nome)
+    if projeto:
+        projects = [p for p in projects if match_filter(p, projeto)]
+
+    for proj in projects:
+        with Spinner(f"Analisando grupos em: {proj}"):
+            groups = devops.list_variable_groups(proj)
+
+        for g in groups:
+            if ambiente and (ambiente not in g.name):
+                continue
+
+            # Varre variáveis do grupo
+            for k, meta in (g.variables or {}).items():
+                raw_val = (meta or {}).get("value")
+                val = str(raw_val) if raw_val is not None else None
+                if contains(val, termo, ignore_case=ignore_case):
+                    results.append(
+                        {
+                            "projeto": proj,
+                            "grupo": g.name,
+                            "variavel": k,
+                            "valor": val,
+                            "criado_por": _format_identity(g.created_by),
+                            "modificado_por": _format_identity(g.modified_by),
+                        }
+                    )
+
+    return results
+
+
+def baixar(
+    devops: AzureDevOps,
+    projeto: str,
+    lib: str,
+    ambiente: Optional[str],
+) -> Tuple[str, Dict[str, str]]:
+    """Localiza um Variable Group por nome (lib) e retorna as variáveis para exportação .env.
+
+    Args:
+        devops: Fachada do Azure DevOps.
+        projeto: Nome (ou substring) do projeto.
+        lib: Nome exato (preferência) ou substring do grupo alvo.
+        ambiente: Opcional, restringe pelo nome do grupo contendo o ambiente.
+
+    Returns:
+        Tupla (nome_do_grupo_encontrado, dict_variaveis_key_value)
+
+    Raises:
+        ValueError: Se não encontrar projeto/grupo compatível.
+    """
+    with Spinner("Listando projetos..."):
+        projects = devops.list_projects()
+
+    # Seleciona o primeiro projeto que combine
+    cand_projects = [p for p in projects if match_filter(p, projeto)] if projeto else projects
+    if not cand_projects:
+        raise ValueError("Nenhum projeto encontrado com o filtro informado.")
+
+    # Percorre projetos candidatos até achar a lib
+    for proj in cand_projects:
+        with Spinner(f"Procurando grupos em: {proj}"):
+            groups = devops.list_variable_groups(proj)
+
+        # Preferir match exato
+        exact = [g for g in groups if g.name == lib and (not ambiente or ambiente in g.name)]
+        if exact:
+            g = exact[0]
+            return g.name, _to_env_map(g)
+
+        # Depois, aceitar substring
+        partial = [g for g in groups if (lib in g.name) and (not ambiente or ambiente in g.name)]
+        if partial:
+            g = partial[0]
+            return g.name, _to_env_map(g)
+
+    raise ValueError("Variable Group (lib) não encontrado nos projetos filtrados.")
+
+
+# ==============================
+# Helpers de formato e I/O
+# ==============================
+def _format_identity(identity: Dict[str, Any]) -> str:
+    """Formata identidade 'Nome <email>' a partir do dicionário de identidade."""
+    name = identity.get("displayName") or "Desconhecido"
+    email = identity.get("uniqueName") or "Desconhecido"
+    return f"{name} <{email}>"
+
+
+def _to_env_map(group: VariableGroup) -> Dict[str, str]:
+    """Converte o dicionário de variáveis do grupo em um mapa key->value para .env."""
+    env: Dict[str, str] = {}
+    for k, meta in (group.variables or {}).items():
+        val = meta.get("value")
+        if val is None:
+            # Segredos geralmente não vêm preenchidos pelo `list`; mantemos marcadores.
+            env[k] = "***SECRET***"
+        else:
+            env[k] = str(val)
+    return env
+
+
+def print_results(results: List[Dict[str, Any]]) -> None:
+    """Exibe resultados de pesquisa no terminal em formato legível."""
+    if not results:
+        print("Nenhum resultado encontrado.")
+        return
+
+    print("Resultados:\n" + "=" * 80)
+    for r in results:
+        print(
+            f"Projeto: {r['projeto']}\n"
+            f"Grupo:   {r['grupo']}\n"
+            f"Chave:   {r['variavel']}\n"
+            f"Valor:   {r['valor']}\n"
+            f"Criado:  {r['criado_por']}\n"
+            f"Modif.:  {r['modificado_por']}\n"
+            + ("-" * 80)
+        )
+
+
+def write_text_file(path: str, content: str) -> None:
+    """Grava texto em arquivo com UTF-8."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+def serialize_results_txt(results: List[Dict[str, Any]]) -> str:
+    """Serializa resultados para um texto simples."""
+    if not results:
+        return "Nenhum resultado encontrado.\n"
+    lines: List[str] = ["Resultados", "=" * 80]
+    for r in results:
+        lines.extend(
+            [
+                f"Projeto: {r['projeto']}",
+                f"Grupo:   {r['grupo']}",
+                f"Chave:   {r['variavel']}",
+                f"Valor:   {r['valor']}",
+                f"Criado:  {r['criado_por']}",
+                f"Modif.:  {r['modificado_por']}",
+                "-" * 80,
+            ]
+        )
+    return "\n".join(lines) + "\n"
+
+
+def serialize_env(env_map: Dict[str, str]) -> str:
+    """Serializa mapa key->value no formato .env, com aspas quando necessário."""
+    lines = [f"{k}={_quote_if_needed(v)}" for k, v in env_map.items()]
+    return "\n".join(lines) + "\n"
+
+
+def _quote_if_needed(value: str) -> str:
+    """Adiciona aspas simples se o valor contiver caracteres que possam quebrar o .env."""
+    if any(ch in value for ch in [' ', '#', '"', "'", '=', '$']):
+        # Usa aspas simples para evitar expandir variáveis. Escapa aspas simples dentro do valor.
+        return "'" + value.replace("'", "'\"'\"'") + "'"
+    return value
+
+
+# ==============================
+# CLI (argparse)
+# ==============================
+def build_parser() -> argparse.ArgumentParser:
+    """Constroi o parser de argumentos da CLI."""
+    parser = argparse.ArgumentParser(
+        prog="capi-cli",
+        description="Busca e exporta variáveis de ambiente (Azure DevOps Variable Groups)",
+    )
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # pesquisar
+    p_search = subparsers.add_parser(
+        "pesquisar", help="Pesquisar variáveis cujo valor contenha um termo"
+    )
+    p_search.add_argument(
+        "--organizacao",
+        required=True,
+        help="URL da organização (ex.: https://dev.azure.com/minha-org)",
+    )
+    p_search.add_argument(
+        "--termo",
+        required=True,
+        help="Termo obrigatório a ser buscado no valor das variáveis",
+    )
+    p_search.add_argument(
+        "--projeto",
+        help="Filtro opcional de projeto (substring)",
+    )
+    p_search.add_argument(
+        "--ambiente",
+        type=str.upper,
+        help="Filtro opcional de ambiente (ex.: DEV, QAS, UAT, HTX, PRD ou qualquer outro)",
+    )
+    p_search.add_argument(
+        "--ignore-case",
+        action="store_true",
+        help="Busca case-insensitive no valor das variáveis",
+    )
+    p_search.add_argument(
+        "--salvar",
+        help="Salvar resultados em arquivo de texto",
+    )
+    p_search.add_argument(
+        "--out",
+        action="store_true",
+        help="Exibir resultados no terminal",
+    )
+
+    # baixar
+    p_download = subparsers.add_parser(
+        "baixar", help="Baixar as variáveis de um Variable Group (lib) para um .env"
+    )
+    p_download.add_argument(
+        "--organizacao",
+        required=True,
+        help="URL da organização (ex.: https://dev.azure.com/minha-org)",
+    )
+    p_download.add_argument(
+        "--projeto",
+        required=True,
+        help="Projeto (ou substring) onde está a lib",
+    )
+    p_download.add_argument(
+        "--lib",
+        required=True,
+        help="Nome do Variable Group (lib). Ex.: Meu-App.QAS",
+    )
+    p_download.add_argument(
+        "--ambiente",
+        type=str.upper,
+        help="Filtro opcional de ambiente no nome do grupo",
+    )
+    p_download.add_argument(
+        "--salvar",
+        help="Salvar .env no caminho indicado (ex.: .env)",
+    )
+    p_download.add_argument(
+        "--out",
+        action="store_true",
+        help="Também exibir .env no terminal",
+    )
+
+    return parser
+
+
+# ==============================
+# Entry point
+# ==============================
+def main(argv: Optional[List[str]] = None) -> int:
+    """Ponto de entrada da aplicação."""
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    devops = AzureDevOps(organization=args.organizacao)
+
+    if args.command == "pesquisar":
+        try:
+            results = pesquisar(
+                devops=devops,
+                termo=args.termo,
+                projeto=args.projeto,
+                ambiente=args.ambiente,
+                ignore_case=args.ignore_case,
+            )
+        except AzCliError as e:
+            print(f"❌ Azure CLI: {e}")
+            return 2
+
+        # Estratégia de saída: se --salvar usar arquivo; se --out exibir; se nenhum, exibir.
+        if args.salvar:
+            text = serialize_results_txt(results)
+            write_text_file(args.salvar, text)
+            print(f"✔ Resultados salvos em: {args.salvar}")
+        if args.out or not args.salvar:
+            print_results(results)
+        return 0
+
+    if args.command == "baixar":
+        try:
+            group_name, env_map = baixar(
+                devops=devops,
+                projeto=args.projeto,
+                lib=args.lib,
+                ambiente=args.ambiente,
+            )
+        except (ValueError, AzCliError) as e:
+            print(f"❌ {e}")
+            return 2
+
+        env_text = serialize_env(env_map)
+
+        if args.salvar:
+            write_text_file(args.salvar, env_text)
+            print(f"✔ .env salvo de '{group_name}' em: {args.salvar}")
+        if args.out or not args.salvar:
+            print(f"# {group_name}")
+            print(env_text)
+        return 0
+
+    # Nunca deve chegar aqui
+    parser.print_help()
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
