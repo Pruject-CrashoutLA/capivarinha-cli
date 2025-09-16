@@ -15,8 +15,8 @@ Requisitos:
   - Azure CLI (az) instalada e autenticada: `az login`
   - (se necessário) extensão do Azure DevOps: `az extension add --name azure-devops`
 
-Autor: Alessandro (adaptado e estruturado em Python)
-Versão: v0.1.2
+Autor: 4lessandroDev
+Versão: v0.1.3
 """
 
 import argparse
@@ -29,19 +29,13 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Set
 
-VERSION = "v0.1.2"
+VERSION = "v0.1.3"
 
 # ==============================
 # Utilidades de Console / Spinner
 # ==============================
 class Spinner:
-    """Spinner simples para feedback visual sem poluir o terminal.
-
-    Uso:
-        with Spinner("Buscando projetos..."):
-            ...
-    """
-
+    """Spinner simples para feedback visual sem poluir o terminal."""
     def __init__(self, message: str = "Processando...") -> None:
         self.message = message
         self._stop = threading.Event()
@@ -114,7 +108,7 @@ def run_az(args: List[str]) -> Any:
 
 
 # ==============================
-# Modelos de dados (simples)
+# Modelos de dados
 # ==============================
 @dataclass
 class VariableGroup:
@@ -140,7 +134,6 @@ class VariableGroup:
 # ==============================
 class AzureDevOps:
     """Fachada para operações necessárias do Azure DevOps via Azure CLI."""
-
     def __init__(self, organization: str) -> None:
         self.organization = organization
 
@@ -313,21 +306,49 @@ def comparar(
         raise ValueError(f"Lib não encontrada: {libs[0]}")
     proj1, group1 = found1
 
-    # Para garantir que ambas existam em um mesmo projeto quando possível,
-    # priorizamos buscar a segunda lib no mesmo projeto da primeira; caso
-    # não ache, buscamos nos demais.
+    # Prioriza o mesmo projeto da primeira lib
     ordered_projects = [proj1] + [p for p in projects if p != proj1]
-
     found2 = _find_group_in_projects(devops, ordered_projects, libs[1], ambiente)
     if not found2:
         raise ValueError(f"Lib não encontrada: {libs[1]}")
     proj2, group2 = found2
 
-    # Opcional: alertar se estão em projetos diferentes (ainda assim comparar)
     if proj1 != proj2:
         print(f"⚠ Aviso: as libs foram encontradas em projetos diferentes: '{proj1}' e '{proj2}'.")
 
     return (group1.name, _to_env_map(group1)), (group2.name, _to_env_map(group2))
+
+
+def baixar(
+    devops: AzureDevOps,
+    projeto: str,
+    lib: str,
+    ambiente: Optional[str],
+) -> Tuple[str, Dict[str, str]]:
+    """Localiza um Variable Group por nome (lib) e retorna as variáveis para exportação .env."""
+    with Spinner("Listando projetos..."):
+        projects = devops.list_projects()
+
+    cand_projects = [p for p in projects if match_filter(p, projeto)] if projeto else projects
+    if not cand_projects:
+        raise ValueError("Nenhum projeto encontrado com o filtro informado.")
+
+    # Percorre projetos candidatos até achar a lib (match exato > substring)
+    for proj in cand_projects:
+        with Spinner(f"Procurando grupos em: {proj}"):
+            groups = devops.list_variable_groups(proj)
+
+        exact = [g for g in groups if g.name == lib and (not ambiente or ambiente in g.name)]
+        if exact:
+            g = exact[0]
+            return g.name, _to_env_map(g)
+
+        partial = [g for g in groups if (lib in g.name) and (not ambiente or ambiente in g.name)]
+        if partial:
+            g = partial[0]
+            return g.name, _to_env_map(g)
+
+    raise ValueError("Variable Group (lib) não encontrado nos projetos filtrados.")
 
 
 # ==============================
