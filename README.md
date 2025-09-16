@@ -10,7 +10,8 @@ Uma CLI em **Python puro** para interagir com **Variable Groups** do Azure DevOp
 
 * 🔍 **Pesquisar**: encontra variáveis cujo **valor** contém um termo informado.  
 * 📥 **Baixar**: exporta todas as variáveis de um **Variable Group (lib)** para um arquivo `.env`.  
-* 📂 **Listar**: exibe todas as variáveis de um projeto/grupo, sem filtro por termo.  
+* 📂 **Listar**: exibe os **grupos (libs)** disponíveis por projeto/ambiente, **sem variáveis**.  
+* 🔀 **Comparar**: compara **duas libs** e mostra as variáveis **exclusivas** de cada uma.
 
 ---
 
@@ -81,13 +82,34 @@ capi-cli baixar \
   --salvar=.env --out
 ```
 
-### Listar
+### Listar (somente grupos/libs)
 
 ```bash
 capi-cli listar \
   --organizacao=https://dev.azure.com/minha-org \
   --projeto=COCKPIT --ambiente=DEV \
-  --salvar=variaveis.txt --out
+  --salvar=grupos.txt --out
+```
+
+### Comparar (duas libs)
+
+```bash
+capi-cli comparar \
+  --organizacao=https://dev.azure.com/minha-org \
+  --projeto=COCKPIT \
+  --lib Meu-App.Backend.DEV \
+  --lib Meu-App.Backend.QAS \
+  --out
+```
+
+Saída de exemplo:
+
+```
+------ DEV -------
++ HOST=localhost:300 (Existe em DEV mas não existe em QAS)
+------ QAS -------
++ PORT=3000 (Existe em QAS mas não existe em DEV)
+------------------
 ```
 
 ---
@@ -101,7 +123,7 @@ capi-cli listar \
 | `--organizacao` | ✅           | URL da organização (ex.: `https://dev.azure.com/minha-org`) |
 | `--termo`       | ✅           | Termo a ser buscado nos valores                             |
 | `--projeto`     | ❌           | Filtro por nome/substring de projeto                        |
-| `--ambiente`    | ❌           | Filtra pelo nome do grupo (`DEV`, `QAS`, etc.)              |
+| `--ambiente`    | ❌           | Filtra pelo nome do grupo (ex.: `DEV`, `QAS`, etc.)         |
 | `--ignore-case` | ❌           | Busca sem diferenciar maiúsculas/minúsculas                 |
 | `--salvar`      | ❌           | Salvar saída em arquivo texto                               |
 | `--out`         | ❌           | Exibir resultados no terminal                               |
@@ -121,31 +143,57 @@ capi-cli listar \
 
 ---
 
-### 📂 `listar`
+### 📂 `listar` (somente grupos/libs)
 
 | Parâmetro       | Obrigatório | Descrição                                     |
 | --------------- | ----------- | --------------------------------------------- |
 | `--organizacao` | ✅           | URL da organização                            |
-| `--projeto`     | ✅           | Nome/substring do projeto                     |
+| `--projeto`     | ❌           | Nome/substring do projeto                     |
 | `--ambiente`    | ❌           | Filtra pelo nome do grupo contendo o ambiente |
 | `--salvar`      | ❌           | Caminho do arquivo texto                      |
-| `--out`         | ❌           | Exibir variáveis no terminal                  |
+| `--out`         | ❌           | Exibir lista no terminal                      |
+
+> A saída lista **apenas** `Projeto`, `Grupo`, `Criado por` e `Modificado por`, sem variáveis.
+
+---
+
+### 🔀 `comparar`
+
+| Parâmetro       | Obrigatório | Descrição                                                                |
+| --------------- | ----------- | ------------------------------------------------------------------------ |
+| `--organizacao` | ✅           | URL da organização                                                       |
+| `--projeto`     | ❌           | Nome/substring do projeto                                                |
+| `--lib`         | ✅ (×2)      | Informe **duas vezes**: primeira e segunda lib (match exato > substring) |
+| `--ambiente`    | ❌           | Filtra pelo nome do grupo contendo o ambiente                            |
+| `--salvar`      | ❌           | Caminho do arquivo texto para salvar a comparação                        |
+| `--out`         | ❌           | Exibir comparação no terminal                                            |
+
+> A comparação mostra as **variáveis exclusivas** de cada lib. (Opcionalmente, você pode salvar essa saída em um arquivo via `--salvar`.)
 
 ---
 
 ## 📦 Saída
 
-* **pesquisar** e **listar** → lista:
+* **pesquisar** → lista:
 
-```
-projeto | grupo | chave | valor | criado_por | modificado_por
-```
+  ```
+  projeto | grupo | chave | valor | criado_por | modificado_por
+  ```
+* **listar** → lista **apenas** grupos/libs:
 
-* **baixar** → gera `.env` no formato:
+  ```
+  --------------------------------------------------------------------------------
+  Projeto: NOME_PROJETO
+  Grupo:   NOME_DO_GRUPO
+  Criado:  Nome <email>
+  Modif.:  Nome <email>
+  --------------------------------------------------------------------------------
+  ```
+* **baixar** → gera `.env`:
 
-```
-KEY=VALUE
-```
+  ```
+  KEY=VALUE
+  ```
 
 > 🔒 **Segredos** não são retornados pela Azure CLI — aparecem como `***SECRET***`.
 
@@ -153,32 +201,33 @@ KEY=VALUE
 
 ## 🖥️ Experiência no terminal
 
-* Exibe **spinners discretos** (`Listando projetos...`, `Analisando grupos...`)
-* Limpa a linha ao final → saída limpa e organizada
+* **Spinners discretos** (`Listando projetos...`, `Analisando grupos...`)
+* Linha limpa ao final → saída organizada
 
 ---
 
 ## ⚠️ Limitações atuais
 
-* Busca é **case-sensitive** por padrão (use `--ignore-case` se quiser sem diferenciação).
-* Segredos não podem ser exportados (limitado pela API da Azure CLI).
+* Busca é **case-sensitive** por padrão (use `--ignore-case` para ignorar).
+* Segredos não podem ser exportados (limitação da Azure CLI).
 
 ---
 
 ## 📚 Boas práticas aplicadas
 
 * Arquitetura limpa (Clean Code & SOLID)
-* Fachada `AzureDevOps`, funções puras e separação clara de responsabilidades
-* **Docstrings + type hints** para fácil manutenção
+* Fachada `AzureDevOps`, funções puras e separação de responsabilidades
+* **Docstrings + type hints** para manutenção simples
 * **Zero dependências externas** além da stdlib do Python
 
 ---
 
 ## 🚀 Roadmap
 
-* Exportar também para JSON ou YAML
-* Suporte a múltiplas libs no comando `baixar`
-* Melhorar a performance em grandes organizações
+* Exportar para JSON/YAML
+* Suporte a múltiplas libs no `baixar`
+* Mostrar diferenças de **valores** no `comparar` (quando a variável existe nas duas libs)
+* Otimizações de performance em grandes organizações
 
 ---
 
@@ -190,3 +239,13 @@ cd capivarinha-cli && \
 make instalar && \
 cd .. && rm -rf capivarinha-cli
 ```
+
+---
+
+## 🧾 Versão
+
+```bash
+capi-cli --version
+```
+
+Exemplo de saída: `v0.1.2`
