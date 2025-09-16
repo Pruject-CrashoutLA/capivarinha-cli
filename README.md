@@ -87,7 +87,7 @@ capi-cli baixar \
 ```bash
 capi-cli listar \
   --organizacao=https://dev.azure.com/minha-org \
-  --projeto=COCKPIT --ambiente=DEV \
+  --projeto=BOARD --ambiente=DEV \
   --salvar=grupos.txt --out
 ```
 
@@ -96,7 +96,7 @@ capi-cli listar \
 ```bash
 capi-cli comparar \
   --organizacao=https://dev.azure.com/minha-org \
-  --projeto=COCKPIT \
+  --projeto=BOARD \
   --lib Meu-App.Backend.DEV \
   --lib Meu-App.Backend.QAS \
   --out
